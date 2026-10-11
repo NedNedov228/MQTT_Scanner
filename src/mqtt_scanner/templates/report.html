@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MQTT security report</title>
+  <style>
+    :root { font-family: system-ui, sans-serif; color: #17232c; background: #f4f6f6; }
+    body { max-width: 960px; margin: 0 auto; padding: 2rem 1rem; }
+    h1 { margin-bottom: .3rem; }
+    .meta { color: #4f5b60; }
+    article { background: white; border: 1px solid #d1dada; border-left: 5px solid #497b86;
+      margin: 1rem 0; padding: 1rem; }
+    article.FAIL { border-left-color: #b43f32; }
+    article.ERROR { border-left-color: #9a6321; }
+    article.UNKNOWN, article.SKIPPED { border-left-color: #8a9293; }
+    .tag { font-weight: 700; }
+    dl { display: grid; grid-template-columns: 8rem 1fr; gap: .4rem 1rem; }
+    dt { font-weight: 600; } dd { margin: 0; overflow-wrap: anywhere; }
+    @media (max-width: 540px) { dl { grid-template-columns: 1fr; gap: .2rem; } dd { margin-bottom: .7rem; } }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>MQTT security report</h1>
+    <p class="meta">{{ report.target.host }}:{{ report.target.port }} · {{ report.target.transport }} · {{ report.started_at }}</p>
+    <p>Policy: anonymous access {{ 'allowed' if report.policy.anonymous_allowed else 'prohibited' }}.
+      Findings describe only this selected endpoint.</p>
+    {% for finding in report.findings %}
+    <article class="{{ finding.status.value }}">
+      <h2>{{ finding.title }}</h2>
+      <p class="tag">{{ finding.status.value }} · {{ finding.severity.value }} · {{ finding.check_id }}</p>
+      <dl>
+        <dt>Evidence</dt><dd>{{ finding.evidence }}</dd>
+        <dt>Limitation</dt><dd>{{ finding.limitation }}</dd>
+        <dt>Recommendation</dt><dd>{{ finding.recommendation }}</dd>
+      </dl>
+    </article>
+    {% endfor %}
+    <p class="meta">Finished {{ report.finished_at }} · schema {{ report.schema_version }} · scanner {{ report.scanner_version }}</p>
+  </main>
+</body>
+</html>

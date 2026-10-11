@@ -1,0 +1,44 @@
+name: mqtt-scanner-lab
+services:
+  anonymous:
+    image: eclipse-mosquitto:2.0.22
+    ports: ["127.0.0.1:18830:1883"]
+    volumes:
+      - ./anonymous.conf:/mosquitto/config/mosquitto.conf:ro
+  password:
+    image: eclipse-mosquitto:2.0.22
+    ports: ["127.0.0.1:18831:1883"]
+    volumes:
+      - ./password.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./generated/passwords:/mosquitto/config/passwords:ro
+  tls:
+    image: eclipse-mosquitto:2.0.22
+    ports: ["127.0.0.1:18832:8883"]
+    volumes:
+      - ./tls.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./generated:/mosquitto/certs:ro
+  wrong-host:
+    image: eclipse-mosquitto:2.0.22
+    ports: ["127.0.0.1:18833:8883"]
+    volumes:
+      - ./wrong-host.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./generated:/mosquitto/certs:ro
+  expired:
+    image: eclipse-mosquitto:2.0.22
+    ports: ["127.0.0.1:18834:8883"]
+    volumes:
+      - ./expired.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./generated:/mosquitto/certs:ro
+  acl-secure:
+    image: eclipse-mosquitto:2.0.22
+    ports: ["127.0.0.1:18835:1883"]
+    volumes:
+      - ./acl-secure.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./secure.acl:/mosquitto/config/acl:ro
+      - ./generated/passwords:/mosquitto/config/passwords:ro
+  acl-open:
+    image: eclipse-mosquitto:2.0.22
+    ports: ["127.0.0.1:18836:1883"]
+    volumes:
+      - ./acl-open.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./generated/passwords:/mosquitto/config/passwords:ro
