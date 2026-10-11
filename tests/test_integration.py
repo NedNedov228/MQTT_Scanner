@@ -179,3 +179,48 @@ def test_cli_writes_reports_and_exit_codes(tmp_path: Path) -> None:
         item["status"] == "PASS"
         for item in json.loads((tmp_path / "report.json").read_text())["findings"]
     )
+    unknown = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "mqtt_scanner.cli",
+            "check",
+            "localhost",
+            "--port",
+            "18831",
+            "--transport",
+            "tls",
+            "--ca-file",
+            CA_FILE,
+            "--output",
+            str(tmp_path),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+    assert unknown.returncode == 3, unknown.stderr
+    assert any(
+        item["status"] == "UNKNOWN"
+        for item in json.loads((tmp_path / "report.json").read_text())["findings"]
+    )
+    with socket.socket() as free_socket:
+        free_socket.bind(("127.0.0.1", 0))
+        unused_port = free_socket.getsockname()[1]
+    unavailable = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "mqtt_scanner.cli",
+            "check",
+            "127.0.0.1",
+            "--port",
+            str(unused_port),
+            "--output",
+            str(tmp_path),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+    assert unavailable.returncode == 2, unavailable.stderr

@@ -8,10 +8,13 @@ in a disposable process with a parent-enforced deadline. `reporting.py` renders
 the same report to both formats; the packaged Jinja template enables autoescaping
 and contains no scripts or remote assets.
 
-Paho implements MQTT; Python's SSLContext implements TLS trust and hostname
-verification. A separate initial socket establishes network/TLS evidence. MQTT
-then connects with the same TLS verification policy. Each phase has a bounded
-timeout, and the parent bounds the complete network operation.
+Paho constructs the MQTT 3.1.1 CONNECT and handles TLS socket setup. The scanner
+reads at most four response bytes from Paho's connected socket, validating the
+fixed CONNACK header before reading more. This prevents a peer from forcing Paho
+to buffer an arbitrary MQTT packet while this CONNECT-only probe is running.
+Python's SSLContext implements TLS trust and hostname verification. A separate
+initial socket establishes network/TLS evidence; Paho uses the same verification
+policy. Each phase has a bounded timeout, and the parent bounds network work.
 
 Result status and severity have different purposes: ERROR is execution failure,
 UNKNOWN is insufficient evidence, FAIL is a violated expected policy. PASS applies

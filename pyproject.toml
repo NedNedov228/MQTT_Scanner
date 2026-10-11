@@ -9,7 +9,7 @@ description = "Evidence-based MQTT security checks with a reproducible Mosquitto
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
-dependencies = ["paho-mqtt>=2.1,<3", "typer>=0.16,<1", "jinja2>=3.1.6,<4"]
+dependencies = ["paho-mqtt==2.1.0", "typer>=0.16,<1", "jinja2>=3.1.6,<4"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.3,<10", "pytest-cov>=6,<8", "ruff>=0.11,<1", "mypy>=1.15,<2", "cryptography>=50,<51", "build>=1.2,<2", "pip-audit>=2.9,<3"]

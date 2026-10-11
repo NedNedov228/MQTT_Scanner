@@ -6,13 +6,12 @@ import socket
 import ssl
 from dataclasses import dataclass
 from pathlib import Path
-from queue import Empty, Queue
-from threading import Event
+from time import monotonic
+from typing import cast
 from uuid import uuid4
 
 import paho.mqtt.client as mqtt
 from paho.mqtt.enums import CallbackAPIVersion
-from paho.mqtt.reasoncodes import ReasonCode
 
 from mqtt_scanner.models import Finding, Policy, Severity, Status, Target
 
@@ -48,19 +47,6 @@ def _tls_context(ca_file: str | None) -> ssl.SSLContext:
 
 
 def _mqtt_probe(target: Target, timeout: float, ca_file: str | None) -> Probe:
-    done = Event()
-    answers: Queue[tuple[int, str]] = Queue(maxsize=1)
-
-    def on_connect(
-        _client: mqtt.Client,
-        _userdata: object,
-        _flags: object,
-        reason_code: ReasonCode,
-        _properties: object,
-    ) -> None:
-        answers.put((int(reason_code.value), str(reason_code)))
-        done.set()
-
     client = mqtt.Client(
         callback_api_version=CallbackAPIVersion.VERSION2,
         client_id=f"mqtt-scanner-{uuid4().hex}",
@@ -68,29 +54,47 @@ def _mqtt_probe(target: Target, timeout: float, ca_file: str | None) -> Probe:
         protocol=mqtt.MQTTv311,
         reconnect_on_failure=False,
     )
-    client.on_connect = on_connect
     if target.transport == "tls":
         client.tls_set_context(_tls_context(ca_file))
     try:
         client.connect(target.host, target.port, keepalive=max(2, int(timeout) + 1))
-        client.loop_start()
-        if not done.wait(timeout):
-            return Probe("unknown", "No MQTT CONNACK before timeout")
-        try:
-            code, description = answers.get_nowait()
-        except Empty:
-            return Probe("unknown", "MQTT callback yielded no result")
+        stream = cast(socket.socket | None, client.socket())
+        if stream is None:
+            return Probe("error", "Paho did not provide a connected socket")
+        response = bytearray()
+        expires_at = monotonic() + timeout
+        while len(response) < 4:
+            remaining = expires_at - monotonic()
+            if remaining <= 0:
+                return Probe("unknown", "No MQTT CONNACK before timeout")
+            stream.settimeout(remaining)
+            chunk = stream.recv(4 - len(response))
+            if not chunk:
+                return Probe("unknown", "Connection closed before MQTT CONNACK")
+            response.extend(chunk)
+            if response[0] != 0x20 or (len(response) >= 2 and response[1] != 0x02):
+                return Probe("unknown", "Response is not a four-byte MQTT 3.1.1 CONNACK")
+        if response[2] != 0:
+            return Probe("unknown", "Unexpected session-present flag in MQTT CONNACK")
+        code = response[3]
         if code == 0:
             return Probe("accepted", "MQTT 3.1.1 CONNACK success (code 0)")
-        # Callback API v2 normalizes MQTT 3 CONNACK codes to MQTT 5 reason codes.
-        detail = f"MQTT 3.1.1 CONNACK: {description} (Paho reason code {code})"
-        if code in {134, 135}:
+        reasons = {
+            1: "unacceptable protocol version",
+            2: "identifier rejected",
+            3: "server unavailable",
+            4: "bad username or password",
+            5: "not authorized",
+        }
+        detail = f"MQTT 3.1.1 CONNACK code {code}: {reasons.get(code, 'unknown response code')}"
+        if code in {4, 5}:
             return Probe("rejected_auth", detail)
         return Probe("rejected_other", detail)
+    except TimeoutError:
+        return Probe("unknown", "No MQTT CONNACK before timeout")
     except (OSError, ValueError) as error:
         return Probe("error", _error_detail(error))
     finally:
-        client.loop_stop()
         client.disconnect()
 
 
