@@ -65,6 +65,15 @@ to the selected listener; they are not a full broker security assessment.
 The CONNECT-only probe reads at most four response bytes, rejecting any other
 MQTT frame before its payload is buffered.
 
+Open the generated `reports/anonymous/report.html` or `reports/tls/report.html`
+in a browser. On macOS, use `open reports/anonymous/report.html` after the scan.
+The CLI prints absolute paths to both output files. The file
+`src/mqtt_scanner/templates/report.html.j2` is an internal Jinja template, not a
+finished report: browsers cannot substitute its variables themselves.
+
+For a detailed Russian walkthrough with commands and expected results, see
+[how to verify the scanner yourself](docs/manual-testing.ru.md).
+
 ## Verify
 
 ```sh

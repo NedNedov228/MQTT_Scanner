@@ -280,6 +280,12 @@ def test_cli_writes_reports_and_exit_codes(tmp_path: Path) -> None:
         "auth.anonymous",
     }
     assert (tmp_path / "report.html").is_file()
+    assert f"HTML report: {tmp_path / 'report.html'}" in result.stdout
+    assert f"JSON report: {tmp_path / 'report.json'}" in result.stdout
+    html = (tmp_path / "report.html").read_text()
+    assert "localhost:18830" in html
+    assert "2 policy failures" in html
+    assert "{{ report." not in html and "{% for" not in html
     allowed = subprocess.run(
         command + ["--anonymous-allowed"], capture_output=True, text=True, timeout=20
     )

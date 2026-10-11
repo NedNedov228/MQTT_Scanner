@@ -28,7 +28,9 @@ def test_target_rejects_invalid_values(host: str, port: int, transport: str) -> 
         Target(host, port, transport)
 
 
-def test_reports_use_same_structured_data_and_escape_html(tmp_path: Path) -> None:
+def test_reports_use_same_structured_data_and_escape_html(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     report = Report(
         "1.0",
         "0.1.0",
@@ -48,7 +50,10 @@ def test_reports_use_same_structured_data_and_escape_html(tmp_path: Path) -> Non
             )
         ],
     )
-    json_path, html_path = write_reports(report, tmp_path)
+    monkeypatch.chdir(tmp_path)
+    json_path, html_path = write_reports(report, Path("output"))
+    assert json_path == tmp_path / "output" / "report.json"
+    assert html_path == tmp_path / "output" / "report.html"
     assert json.loads(json_path.read_text()) == report.to_dict()
     assert render_json(report) == json_path.read_text()
     html = html_path.read_text()
@@ -56,6 +61,9 @@ def test_reports_use_same_structured_data_and_escape_html(tmp_path: Path) -> Non
     assert "&lt;script&gt;" in html and "&lt;img src=x&gt;" in html
     assert "<script>alert(1)</script>" not in html
     assert "<img src=x>" not in html
+    assert "localhost:1883" in html
+    assert "1 policy failures" in html
+    assert "{{" not in html and "{%" not in html
 
 
 def test_scan_rejects_invalid_options() -> None:

@@ -1,7 +1,8 @@
 # MVP verification
 
 Verified locally on 2026-10-11 on macOS ARM64 with Python 3.14.4 and 3.12.15,
-and Mosquitto 2.0.22 in Docker. Scanner implementation under test: `ff278a9`.
+and Mosquitto 2.0.22 in Docker. The original scanner implementation was
+`ff278a9`; subsequent report-output changes retain the same network checks.
 
 ## Automated checks
 
@@ -37,6 +38,10 @@ and escaping of untrusted HTML.
 
 The final wheel was installed into a separate virtual environment. Its CLI was
 run from outside the repository, so the source checkout was not required.
+The internal template is packaged as `report.html.j2`; generated output remains
+`report.html`. Regression assertions verify substituted endpoint values,
+summary counts, absence of unresolved template syntax in fixture reports and
+absolute output paths printed by the CLI.
 
 | Endpoint | Observation | Exit |
 | --- | --- | --- |

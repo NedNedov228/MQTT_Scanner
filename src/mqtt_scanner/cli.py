@@ -60,7 +60,9 @@ def check(
         raise typer.Exit(2) from error
     for finding in report.findings:
         typer.echo(f"{finding.status.value:<7} {finding.check_id}: {finding.evidence}")
-    typer.echo(f"Reports: {json_path}, {html_path}")
+    typer.echo(f"JSON report: {json_path}")
+    typer.echo(f"HTML report: {html_path}")
+    typer.echo("Open the HTML report in your browser to view the scan results.")
     if any(item.status == Status.ERROR for item in report.findings):
         raise typer.Exit(2)
     if any(item.status == Status.UNKNOWN for item in report.findings):

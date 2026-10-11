@@ -17,13 +17,14 @@ def render_json(report: Report) -> str:
 
 def render_html(report: Report) -> str:
     template_text = (
-        files("mqtt_scanner").joinpath("templates/report.html").read_text(encoding="utf-8")
+        files("mqtt_scanner").joinpath("templates/report.html.j2").read_text(encoding="utf-8")
     )
     environment = Environment(autoescape=select_autoescape(default=True, default_for_string=True))
     return environment.from_string(template_text).render(report=report)
 
 
 def write_reports(report: Report, output_dir: Path) -> tuple[Path, Path]:
+    output_dir = output_dir.resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
     json_path = output_dir / "report.json"
     html_path = output_dir / "report.html"
