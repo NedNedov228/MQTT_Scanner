@@ -1,0 +1,41 @@
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mqtt-security-scanner"
+version = "0.1.0"
+description = "Evidence-based MQTT security checks with a reproducible Mosquitto lab"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+dependencies = ["paho-mqtt>=2.1,<3", "typer>=0.16,<1", "jinja2>=3.1.6,<4"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3,<10", "pytest-cov>=6,<8", "ruff>=0.11,<1", "mypy>=1.15,<2", "cryptography>=44,<50", "build>=1.2,<2", "pip-audit>=2.9,<3"]
+
+[project.scripts]
+mqtt-scanner = "mqtt_scanner.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mqtt_scanner"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["integration: requires the Docker Compose Mosquitto lab"]
+addopts = "-ra"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+
+[[tool.mypy.overrides]]
+module = "paho.*"
+ignore_missing_imports = true
