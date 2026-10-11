@@ -1,13 +1,13 @@
 # MVP verification
 
-Verified locally on 2026-10-11 on macOS ARM64 with Python 3.14.4 and
-Mosquitto 2.0.22 in Docker. Implementation under test: `ff278a9`.
+Verified locally on 2026-10-11 on macOS ARM64 with Python 3.14.4 and 3.12.15,
+and Mosquitto 2.0.22 in Docker. Scanner implementation under test: `ff278a9`.
 
 ## Automated checks
 
 | Check | Result |
 | --- | --- |
-| `MQTT_LAB=1 .venv/bin/pytest -q` | 34 passed, no skips |
+| `MQTT_LAB=1 .venv/bin/pytest -q` | 34 passed, no skips, on both Python versions |
 | `ruff check src tests lab/setup.py` | Passed |
 | `ruff format --check src tests lab/setup.py` | Passed |
 | `mypy src tests lab/setup.py` | Passed, 10 source files |
@@ -69,6 +69,9 @@ above. `MQTT_LAB=1` makes missing fixtures a failure rather than a skip.
 GitHub Actions is configured to run locked dependencies on Python 3.12, start
 the lab, run checks, build distributions, test the installed wheel and stop the
 lab even after a failure.
+
+Lab credential generation runs with the invoking user's UID/GID so generated
+files remain manageable on Linux as well as Docker Desktop.
 
 Passing these tests establishes the documented MVP behavior in the tested
 environments. It does not prove that a target broker has no other vulnerabilities.

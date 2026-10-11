@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -94,11 +95,14 @@ def main() -> None:
             .sign(ca_key, hashes.SHA256())
         )
         _write(label, key, certificate)
+    (OUTPUT / "passwords").unlink(missing_ok=True)
     subprocess.run(
         [
             "docker",
             "run",
             "--rm",
+            "--user",
+            f"{os.getuid()}:{os.getgid()}",
             "-v",
             f"{OUTPUT}:/out",
             "eclipse-mosquitto:2.0.22",
@@ -116,6 +120,8 @@ def main() -> None:
             "docker",
             "run",
             "--rm",
+            "--user",
+            f"{os.getuid()}:{os.getgid()}",
             "-v",
             f"{OUTPUT}:/out",
             "eclipse-mosquitto:2.0.22",
