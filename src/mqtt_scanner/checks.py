@@ -54,6 +54,7 @@ def _mqtt_probe(target: Target, timeout: float, ca_file: str | None) -> Probe:
         protocol=mqtt.MQTTv311,
         reconnect_on_failure=False,
     )
+    client.connect_timeout = timeout
     if target.transport == "tls":
         client.tls_set_context(_tls_context(ca_file))
     try:
@@ -61,6 +62,7 @@ def _mqtt_probe(target: Target, timeout: float, ca_file: str | None) -> Probe:
         stream = cast(socket.socket | None, client.socket())
         if stream is None:
             return Probe("error", "Paho did not provide a connected socket")
+        # This CONNECT-only probe needs exactly four bytes, never a general MQTT payload.
         response = bytearray()
         expires_at = monotonic() + timeout
         while len(response) < 4:
@@ -77,6 +79,8 @@ def _mqtt_probe(target: Target, timeout: float, ca_file: str | None) -> Probe:
         if response[2] != 0:
             return Probe("unknown", "Unexpected session-present flag in MQTT CONNACK")
         code = response[3]
+        if code > 5:
+            return Probe("unknown", f"Invalid MQTT 3.1.1 CONNACK return code {code}")
         if code == 0:
             return Probe("accepted", "MQTT 3.1.1 CONNACK success (code 0)")
         reasons = {

@@ -6,7 +6,7 @@
   <title>MQTT security report</title>
   <style>
     :root { font-family: system-ui, sans-serif; color: #17232c; background: #f4f6f6; }
-    body { max-width: 960px; margin: 0 auto; padding: 2rem 1rem; }
+    body { max-width: 960px; margin: 0 auto; padding: 2rem 1rem; overflow-wrap: anywhere; }
     h1 { margin-bottom: .3rem; }
     .meta { color: #4f5b60; }
     article { background: white; border: 1px solid #d1dada; border-left: 5px solid #497b86;
@@ -26,6 +26,9 @@
     <p class="meta">{{ report.target.host }}:{{ report.target.port }} · {{ report.target.transport }} · {{ report.started_at }}</p>
     <p>Policy: anonymous access {{ 'allowed' if report.policy.anonymous_allowed else 'prohibited' }}.
       Findings describe only this selected endpoint.</p>
+    <p><strong>{{ report.findings | selectattr('status', 'equalto', 'FAIL') | list | length }} policy failures</strong>
+      · {{ report.findings | selectattr('status', 'equalto', 'ERROR') | list | length }} errors
+      · {{ report.findings | selectattr('status', 'equalto', 'UNKNOWN') | list | length }} inconclusive</p>
     {% for finding in report.findings %}
     <article class="{{ finding.status.value }}">
       <h2>{{ finding.title }}</h2>

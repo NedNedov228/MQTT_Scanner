@@ -1,3 +1,6 @@
 user testuser
 topic read lab/sensor/#
 topic write lab/commands/testuser/#
+
+user publisher
+topic write lab/sensor/#

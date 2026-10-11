@@ -111,6 +111,22 @@ def main() -> None:
         ],
         check=True,
     )
+    subprocess.run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "-v",
+            f"{OUTPUT}:/out",
+            "eclipse-mosquitto:2.0.22",
+            "mosquitto_passwd",
+            "-b",
+            "/out/passwords",
+            "publisher",
+            "testpass",
+        ],
+        check=True,
+    )
     (OUTPUT / "passwords").chmod(0o644)
     print(f"Generated local-only lab files in {OUTPUT}")
 

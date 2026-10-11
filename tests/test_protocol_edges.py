@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import socket
 import threading
+import time
 from time import monotonic
+
+import pytest
 
 from mqtt_scanner.models import Status, Target
 from mqtt_scanner.runner import scan
@@ -68,4 +71,86 @@ def test_oversized_broker_frame_is_rejected_before_payload() -> None:
     assert findings["transport.tls"].status == Status.UNKNOWN
     assert findings["auth.anonymous"].status == Status.UNKNOWN
     assert elapsed < 2
+    thread.join(timeout=2)
+
+
+def test_silent_broker_obeys_probe_timeout() -> None:
+    ready = threading.Event()
+    release = threading.Event()
+    ports: list[int] = []
+
+    def serve() -> None:
+        with socket.socket() as server:
+            server.bind(("127.0.0.1", 0))
+            server.listen(4)
+            server.settimeout(5)
+            ports.append(server.getsockname()[1])
+            ready.set()
+            first, _ = server.accept()
+            first.close()
+            second, _ = server.accept()
+            with second:
+                release.wait(4)
+
+    thread = threading.Thread(target=serve, daemon=True)
+    thread.start()
+    assert ready.wait(2)
+    try:
+        started = monotonic()
+        report = scan(Target("127.0.0.1", ports[0], "tcp"), timeout=0.2, deadline=3)
+        findings = {finding.check_id: finding for finding in report.findings}
+        assert findings["protocol.mqtt"].status == Status.UNKNOWN
+        assert "timeout" in findings["protocol.mqtt"].evidence
+        assert findings["transport.tls"].status == Status.UNKNOWN
+        assert findings["auth.anonymous"].status == Status.UNKNOWN
+        assert monotonic() - started < 2
+    finally:
+        release.set()
+        thread.join(timeout=2)
+
+
+@pytest.mark.parametrize(
+    "response,protocol_status,anonymous_status",
+    [
+        (b"\x20\x02\x00\x00", Status.PASS, Status.FAIL),
+        (b"\x20\x02\x00\x04", Status.PASS, Status.PASS),
+        (b"\x20\x02\x00\x03", Status.PASS, Status.UNKNOWN),
+        (b"\x20\x02\x01\x00", Status.UNKNOWN, Status.UNKNOWN),
+        (b"\x20\x02\x00\x06", Status.UNKNOWN, Status.UNKNOWN),
+        (b"\x20\x02", Status.UNKNOWN, Status.UNKNOWN),
+    ],
+)
+def test_fragmented_and_malformed_connack(
+    response: bytes, protocol_status: Status, anonymous_status: Status
+) -> None:
+    ready = threading.Event()
+    ports: list[int] = []
+
+    def serve() -> None:
+        with socket.socket() as server:
+            server.bind(("127.0.0.1", 0))
+            server.listen(4)
+            server.settimeout(5)
+            ports.append(server.getsockname()[1])
+            ready.set()
+            first, _ = server.accept()
+            first.close()
+            second, _ = server.accept()
+            with second:
+                second.settimeout(2)
+                second.recv(512)
+                for byte in response:
+                    second.sendall(bytes([byte]))
+                    time.sleep(0.01)
+
+    thread = threading.Thread(target=serve, daemon=True)
+    thread.start()
+    assert ready.wait(2)
+    report = scan(Target("127.0.0.1", ports[0], "tcp"), timeout=1, deadline=4)
+    findings = {finding.check_id: finding for finding in report.findings}
+    assert findings["protocol.mqtt"].status == protocol_status
+    assert findings["auth.anonymous"].status == anonymous_status
+    assert findings["transport.tls"].status == (
+        Status.FAIL if protocol_status == Status.PASS else Status.UNKNOWN
+    )
     thread.join(timeout=2)

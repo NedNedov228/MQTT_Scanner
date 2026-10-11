@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import json
+import socket
 from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
+from mqtt_scanner import checks
 from mqtt_scanner.models import Finding, Policy, Report, Severity, Status, Target
 from mqtt_scanner.reporting import render_html, render_json, write_reports
 from mqtt_scanner.runner import scan
@@ -67,3 +69,14 @@ def test_scan_rejects_invalid_options() -> None:
 def test_status_is_independent_of_severity() -> None:
     finding = Finding("id", "name", Status.UNKNOWN, Severity.INFO, "no reply", "limit", "retry")
     assert replace(finding, severity=Severity.HIGH).status == Status.UNKNOWN
+
+
+def test_dns_failure_does_not_make_security_claims(monkeypatch: pytest.MonkeyPatch) -> None:
+    def unresolved(_target: Target, _timeout: float) -> socket.socket:
+        raise socket.gaierror("fixture DNS resolution failure")
+
+    monkeypatch.setattr(checks, "_connect", unresolved)
+    findings = checks.run_checks(Target("fixture.invalid", 1883, "tcp"), Policy(), 1, None)
+    assert findings[0].status == Status.ERROR
+    assert "gaierror" in findings[0].evidence
+    assert all(finding.status == Status.SKIPPED for finding in findings[1:])

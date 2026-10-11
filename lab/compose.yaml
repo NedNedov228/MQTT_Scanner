@@ -16,6 +16,7 @@ services:
     ports: ["127.0.0.1:18832:8883"]
     volumes:
       - ./tls.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./secure.acl:/mosquitto/config/acl:ro
       - ./generated:/mosquitto/certs:ro
   wrong-host:
     image: eclipse-mosquitto:2.0.22

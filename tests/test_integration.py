@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import multiprocessing
 import os
 import socket
 import subprocess
@@ -8,8 +9,13 @@ import sys
 import threading
 import time
 from pathlib import Path
+from uuid import uuid4
 
+import paho.mqtt.client as mqtt
 import pytest
+from paho.mqtt.enums import CallbackAPIVersion
+from paho.mqtt.properties import Properties
+from paho.mqtt.reasoncodes import ReasonCode
 
 from mqtt_scanner.models import Finding, Policy, Status, Target
 from mqtt_scanner.runner import scan
@@ -91,6 +97,75 @@ def test_acl_lab_profiles_do_not_produce_acl_claim(port: int) -> None:
     assert not any(check_id.startswith("acl.") for check_id in findings)
 
 
+@pytest.mark.parametrize(
+    "port,transport,topic_prefix,expected",
+    [
+        (18835, "tcp", "lab/sensor", True),
+        (18835, "tcp", "lab/commands/testuser", False),
+        (18836, "tcp", "lab/commands/testuser", True),
+        (18832, "tls", "lab/sensor", True),
+        (18832, "tls", "lab/commands/testuser", False),
+    ],
+)
+def test_lab_acl_profiles_independently(
+    port: int, transport: str, topic_prefix: str, expected: bool
+) -> None:
+    topic = f"{topic_prefix}/{uuid4().hex}"
+    subscribed = threading.Event()
+    received = threading.Event()
+
+    def on_connect(
+        client: mqtt.Client,
+        _userdata: object,
+        _flags: object,
+        _reason_code: ReasonCode,
+        _properties: object,
+    ) -> None:
+        client.subscribe(topic)
+
+    def on_subscribe(
+        _client: mqtt.Client,
+        _userdata: object,
+        _mid: int,
+        _reason_codes: list[ReasonCode],
+        _properties: Properties,
+    ) -> None:
+        subscribed.set()
+
+    def on_message(_client: mqtt.Client, _userdata: object, message: mqtt.MQTTMessage) -> None:
+        if message.topic == topic and message.payload == b"fixture":
+            received.set()
+
+    client = mqtt.Client(callback_api_version=CallbackAPIVersion.VERSION2)
+    client.username_pw_set("testuser", "testpass")
+    if transport == "tls":
+        client.tls_set(ca_certs=CA_FILE)
+    client.on_connect = on_connect
+    client.on_subscribe = on_subscribe
+    client.on_message = on_message
+    publisher = mqtt.Client(callback_api_version=CallbackAPIVersion.VERSION2)
+    publisher.username_pw_set(
+        "publisher" if topic_prefix == "lab/sensor" else "testuser", "testpass"
+    )
+    if transport == "tls":
+        publisher.tls_set(ca_certs=CA_FILE)
+    try:
+        client.connect("localhost", port)
+        client.loop_start()
+        assert subscribed.wait(3), f"No SUBACK for {topic} on {port}"
+        publisher.connect("localhost", port)
+        publisher.loop_start()
+        message = publisher.publish(topic, b"fixture", qos=1, retain=False)
+        message.wait_for_publish(timeout=3)
+        assert message.is_published()
+        assert received.wait(2 if expected else 0.5) is expected
+    finally:
+        publisher.disconnect()
+        publisher.loop_stop()
+        client.disconnect()
+        client.loop_stop()
+
+
 def test_unavailable_endpoint_is_error() -> None:
     with socket.socket() as free_socket:
         free_socket.bind(("127.0.0.1", 0))
@@ -121,9 +196,14 @@ def test_stalled_broker_obeys_whole_scan_deadline() -> None:
     thread = threading.Thread(target=stall, daemon=True)
     thread.start()
     assert ready.wait(2)
+    children_before = {process.pid for process in multiprocessing.active_children()}
+    started = time.monotonic()
     report = scan(Target("127.0.0.1", port_holder[0], "tcp"), timeout=3, deadline=1)
     assert report.findings[0].check_id == "scan.execution"
     assert report.findings[0].status == Status.ERROR
+    assert "deadline exceeded" in report.findings[0].evidence
+    assert time.monotonic() - started < 3
+    assert {process.pid for process in multiprocessing.active_children()} <= children_before
     thread.join(timeout=5)
 
 
