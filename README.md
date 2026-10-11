@@ -22,8 +22,7 @@ For the exact development dependencies used in CI, install `uv` and run
 ## Run the local lab
 
 ```sh
-.venv/bin/python lab/setup.py
-docker compose -f lab/compose.yaml up -d
+make lab-up
 .venv/bin/mqtt-scanner check localhost --port 18830 --output reports/anonymous
 .venv/bin/mqtt-scanner check localhost --port 18832 --transport tls \
   --ca-file lab/generated/ca.pem --output reports/tls
@@ -34,7 +33,9 @@ the default policy. The TLS scan exits with code `0`: it verifies the generated
 test CA and confirms that this listener rejects anonymous clients. See
 [lab scenarios](lab/README.md) for all seven profiles.
 
-Use `docker compose -f lab/compose.yaml down` to stop the lab. Its ports bind to
+`make lab-up` recreates the lab and its test certificates/credentials; it requires
+Make and Docker Compose after installing the development extras.
+Use `make lab-down` to stop the lab. Its ports bind to
 `127.0.0.1`; the generated certificates and credentials are disposable.
 
 ## Reports and exit codes

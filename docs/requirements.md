@@ -29,6 +29,21 @@
 4. CLI creates matching JSON/HTML reports; HTML escapes untrusted strings.
 5. Document limitations, exit codes, exact commands and verification evidence.
 
+## Check contracts
+
+Every check receives the explicitly selected host and port; transport is never
+inferred from the port number. A private CA file is valid only with TLS.
+
+| Check | Input | Conclusive observation | Incomplete or failed execution |
+| --- | --- | --- | --- |
+| `network.reachability` | Host, port, timeout | TCP connects: informational PASS | DNS or connection error: ERROR; dependent checks SKIPPED |
+| `protocol.mqtt` | Selected transport, MQTT 3.1.1 CONNECT | Valid CONNACK: PASS even for an authentication refusal | Invalid/missing response: UNKNOWN; socket error: ERROR; blocked by prior network/TLS check: SKIPPED |
+| `auth.anonymous` | No credentials, expected anonymous policy | CONNACK 0 accepts; 4/5 rejects; agreement with policy: PASS, disagreement: FAIL | Other refusal or no valid CONNACK: UNKNOWN; prior failure: SKIPPED |
+| `transport.tls` | TCP or TLS, optional CA, target hostname | Verified TLS: PASS; confirmed plaintext MQTT or invalid certificate: FAIL | Unconfirmed plaintext or TLS handshake failure other than certificate validation: UNKNOWN; unreachable endpoint: SKIPPED |
+
+The parent deadline overrides incomplete observations with `scan.execution`
+ERROR. It never labels an interrupted check as passed.
+
 ## Deferred
 
 Credential validation, active ACL probes, MQTT 5, WebSocket, subnet discovery,

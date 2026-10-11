@@ -4,6 +4,7 @@ import json
 import multiprocessing
 import os
 import socket
+import ssl
 import subprocess
 import sys
 import threading
@@ -65,6 +66,54 @@ def test_password_listener_rejects_anonymous() -> None:
     assert findings["auth.anonymous"].status == Status.PASS
 
 
+@pytest.mark.parametrize(
+    "port,password,accepted",
+    [(18830, None, True), (18831, None, False), (18831, "testpass", True), (18831, "wrong", False)],
+)
+def test_lab_authentication_independently(port: int, password: str | None, accepted: bool) -> None:
+    connected = threading.Event()
+    outcomes: list[bool] = []
+
+    def on_connect(
+        _client: mqtt.Client,
+        _userdata: object,
+        _flags: object,
+        reason_code: ReasonCode,
+        _properties: object,
+    ) -> None:
+        outcomes.append(not reason_code.is_failure)
+        connected.set()
+
+    client = mqtt.Client(
+        callback_api_version=CallbackAPIVersion.VERSION2, reconnect_on_failure=False
+    )
+    client.connect_timeout = 2
+    client.on_connect = on_connect
+    if password is not None:
+        client.username_pw_set("testuser", password)
+    try:
+        client.connect("localhost", port)
+        client.loop_start()
+        assert connected.wait(3), f"No CONNACK on {port}"
+        assert outcomes == [accepted]
+    finally:
+        client.disconnect()
+        client.loop_stop()
+
+
+@pytest.mark.parametrize("port,detail", [(18833, "hostname mismatch"), (18834, "expired")])
+def test_lab_invalid_certificates_independently(port: int, detail: str) -> None:
+    client = mqtt.Client(callback_api_version=CallbackAPIVersion.VERSION2)
+    client.connect_timeout = 2
+    client.tls_set(ca_certs=CA_FILE)
+    try:
+        with pytest.raises(ssl.SSLCertVerificationError) as failure:
+            client.connect("localhost", port)
+        assert detail in str(failure.value).lower()
+    finally:
+        client.disconnect()
+
+
 def test_trusted_tls_and_password() -> None:
     findings = by_id(18832, "tls", CA_FILE)
     assert [finding.status for finding in findings.values()] == [Status.PASS] * 4
@@ -98,17 +147,20 @@ def test_acl_lab_profiles_do_not_produce_acl_claim(port: int) -> None:
 
 
 @pytest.mark.parametrize(
-    "port,transport,topic_prefix,expected",
+    "port,transport,topic_prefix,publisher_account,expected",
     [
-        (18835, "tcp", "lab/sensor", True),
-        (18835, "tcp", "lab/commands/testuser", False),
-        (18836, "tcp", "lab/commands/testuser", True),
-        (18832, "tls", "lab/sensor", True),
-        (18832, "tls", "lab/commands/testuser", False),
+        (18835, "tcp", "lab/sensor", "publisher", True),
+        (18835, "tcp", "lab/commands/testuser", "testuser", False),
+        (18836, "tcp", "lab/commands/testuser", "testuser", True),
+        (18832, "tls", "lab/sensor", "publisher", True),
+        (18832, "tls", "lab/commands/testuser", "testuser", False),
+        (18835, "tcp", "lab/sensor", "testuser", False),
+        (18832, "tls", "lab/sensor", "testuser", False),
+        (18836, "tcp", "lab/sensor", "testuser", True),
     ],
 )
 def test_lab_acl_profiles_independently(
-    port: int, transport: str, topic_prefix: str, expected: bool
+    port: int, transport: str, topic_prefix: str, publisher_account: str, expected: bool
 ) -> None:
     topic = f"{topic_prefix}/{uuid4().hex}"
     subscribed = threading.Event()
@@ -144,9 +196,7 @@ def test_lab_acl_profiles_independently(
     client.on_subscribe = on_subscribe
     client.on_message = on_message
     publisher = mqtt.Client(callback_api_version=CallbackAPIVersion.VERSION2)
-    publisher.username_pw_set(
-        "publisher" if topic_prefix == "lab/sensor" else "testuser", "testpass"
-    )
+    publisher.username_pw_set(publisher_account, "testpass")
     if transport == "tls":
         publisher.tls_set(ca_certs=CA_FILE)
     try:

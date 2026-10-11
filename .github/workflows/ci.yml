@@ -28,9 +28,7 @@ jobs:
       - name: Audit dependencies
         run: .venv/bin/pip-audit
       - name: Start isolated MQTT lab
-        run: |
-          .venv/bin/python lab/setup.py
-          docker compose -f lab/compose.yaml up -d
+        run: make lab-up
       - name: Test against real Mosquitto listeners
         env:
           MQTT_LAB: "1"
@@ -46,4 +44,4 @@ jobs:
           wheel-check/bin/mqtt-scanner check localhost --port 18832 --transport tls --ca-file "${{ github.workspace }}/lab/generated/ca.pem" --output wheel-reports
       - name: Stop lab
         if: always()
-        run: docker compose -f lab/compose.yaml down
+        run: make lab-down

@@ -3,8 +3,7 @@
 Run from the repository root:
 
 ```sh
-.venv/bin/python lab/setup.py
-docker compose -f lab/compose.yaml up -d
+make lab-up
 ```
 
 All published ports bind to host loopback. `testuser` / `testpass` exist only in
@@ -29,4 +28,9 @@ These profiles support future authenticated ACL checks. The MVP scanner itself
 does not assess ACL; an anonymous connection result must not be interpreted as
 ACL evidence.
 
-Stop with `docker compose -f lab/compose.yaml down`.
+The command stops any previous lab, generates fresh fixtures and starts all
+seven listeners. Install the development extras first; Make and Docker Compose
+must be available. Independent Paho tests confirm authentication, certificate
+failures and actual allowed/blocked message delivery for the ACL scenarios.
+
+Stop with `make lab-down`.

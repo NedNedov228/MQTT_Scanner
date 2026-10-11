@@ -7,7 +7,7 @@ and Mosquitto 2.0.22 in Docker. Scanner implementation under test: `ff278a9`.
 
 | Check | Result |
 | --- | --- |
-| `MQTT_LAB=1 .venv/bin/pytest -q` | 34 passed, no skips, on both Python versions |
+| `MQTT_LAB=1 .venv/bin/pytest -q` | 43 passed, no skips, on both Python versions |
 | `ruff check src tests lab/setup.py` | Passed |
 | `ruff format --check src tests lab/setup.py` | Passed |
 | `mypy src tests lab/setup.py` | Passed, 10 source files |
@@ -22,7 +22,10 @@ Dependency audit results are point-in-time observations.
 Tests exercise all seven real lab listeners, anonymous policy, trusted TLS,
 untrusted CA, expired and wrong-host certificates, and an incorrect transport.
 Independent fixture tests use actual MQTT delivery to check allowed and blocked
-subscriptions. The scanner does not perform those active ACL probes.
+subscriptions and publications. Separate Paho clients also confirm anonymous
+and password authentication and the two invalid-certificate scenarios. These
+controls exercise the lab independently of the scanner's result interpretation.
+The scanner does not perform those authenticated or active ACL probes.
 
 Additional tests cover DNS failure, unavailable ports, a silent peer, an overall
 deadline with no surviving scan worker, an HTTP peer, fragmented/truncated or
@@ -72,6 +75,23 @@ lab even after a failure.
 
 Lab credential generation runs with the invoking user's UID/GID so generated
 files remain manageable on Linux as well as Docker Desktop.
+After installing the development extras, `make lab-up` recreates the complete
+lab with one command; `make lab-down` stops it. CI uses these same commands.
+
+## Original stages 1–6: acceptance evidence
+
+| Stage | Implemented deliverable | Verification |
+| --- | --- | --- |
+| 1. Requirements and scope | `docs/requirements.md`, endpoint/transport/policy options | Explicit inputs and outcomes per check; MQTT 3.1.1 scope and exclusions documented |
+| 2. Repository and architecture | `src/mqtt_scanner/`, `pyproject.toml`, `uv.lock`, architecture document | Ruff/mypy pass; wheel and sdist build; installed CLI works outside the checkout |
+| 3. Reproducible lab | `make lab-up`, seven loopback Mosquitto profiles, generated certificates/accounts | Independent Paho connections and message-delivery controls verify every fixture scenario |
+| 4. Network and anonymous connection | Reachability, bounded CONNACK parser, unique clean-session clients, process deadline | Real brokers plus DNS failure, closed/stalled/non-MQTT peers, fragmented replies and worker cleanup tests |
+| 5. TLS verification | Explicit TCP/TLS, system or private CA, trust/hostname/validity checks | Trusted, untrusted, expired and wrong-host certificates; wrong transport; no downgrade after TLS failure |
+| 6. Result model and reports | Five statuses, independent severity, policy, evidence, recommendations, schema-versioned JSON/HTML | Matching renderers, HTML escaping, CLI codes 0–3, generated demo reports and installable MVP 0.1.0 distributions |
+
+Codex Security review and the CWE-400 regression are documented above. Git
+history records incremental implementation, security correction, tests,
+documentation and CI commits pushed to `origin/codex/mvp`.
 
 Passing these tests establishes the documented MVP behavior in the tested
 environments. It does not prove that a target broker has no other vulnerabilities.
